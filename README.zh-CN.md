@@ -8,21 +8,39 @@
 
 ## TL;DR
 
-BF16 权重 66 GB 跑不动——但 Comfy-Org 官方量化线已上线，**w4a8 DiT 仅 12.6 GB**，与视频仓已验证的 kitchen AsymW4A8Int8 布局同款（sm_75 走 torch cu130 反量化）。22G 卡最小可行组合：
+**首跑达成（2026-11-16）**：1024² 全链路 ~1.5 分钟（2048² 2.6 分钟）——w4a8 DiT + cu130 硬件反量化，峰值显存 19.5-21.2 GB：
+
+<p align="center"><img src="docs/assets/first_t2i_1024.png" width="360" alt="2080Ti 22G 首张 t2i" /></p>
+
+BF16 权重 66 GB 跑不动——但 Comfy-Org 官方量化线已上线，**w4a8 DiT 仅 12.6 GB**，与视频仓已验证的 kitchen AsymW4A8Int8 布局同款（sm_75 走 torch cu130 反量化）。22G 卡实测可用组合：
 
 | 组件 | 选择 | 大小 |
 |---|---|---|
 | DiT | `minimax_h3_image_pruned_w4a8` | 12.6 GB |
-| 文本编码器 | `qwen3.5_9b_w4a8_gptq` | 7.3 GB |
+| 文本编码器 | `qwen3vl_32b_minimax_h3_int8_convrot` | 27.1 GB |
 | VAE | `minimax_h3_image_vae_fp16` | 1.2 GB |
-| **合计** | | **≈21 GB → 22G 卡可跑**（TE 可 CPU offload 留余量） |
 
-能力：文生图、图生图、多参考图编辑，且官方同步发布了**图像版 PDD**（`pdd_config.json` + fused heads）。
+staged 合计 ≈41 GB——comfy-aimdo 动态分页轮流上场，22G 卡实测峰值仅 19.5 GB（1024²）/ 21.2 GB（2048²）。⚠️ 7.3 GB 的 `qwen3.5_9b_w4a8_gptq` 是 **p-h3-image 变体专用 TE**（hidden 4096 ≠ 正主 33.1B DiT 的 5120），别重蹈我们的覆辙。
+
+能力：文生图、图生图、多参考图编辑。图像版 PDD 已烘进 6 步蒸馏发布权重，无需额外安装。
+
+## 快速开始
+
+```bash
+# 1. 模型（~41 GB，断点续传，sha256 全检；国内走 hf-mirror）
+python scripts/download_models.py --dest <ComfyUI>/models --source mirror
+# 2. 启动 ComfyUI >= v0.45.0（带 Turing 安全参数）
+<ComfyUI 的 python> main.py --listen 127.0.0.1 --port 8188 --reserve-vram 2.5 --vram-headroom 0.5 --disable-pinned-memory
+# 3. 一键出图（官方参数内置：6 步 euler/simple cfg=1）
+python scripts/t2i.py --prompt "a fluffy orange cat in a blacksmith apron" --width 1024 --height 1024 --seed 42
+```
+
+完整安装 SOP（含失败分支速查）：**[docs/SOP.zh.md](docs/SOP.zh.md)** · [English](docs/en/SOP.md)
 
 ## 路线图
 
 - [x] Phase 0 — 情报侦察：模型解剖、量化变体、显存测算（本 README）
-- [ ] Phase 1 — 首跑：下载 w4a8 套装，2080Ti 首张 t2i
+- [x] Phase 1 — 首跑达成（2026-11-16）：w4a8 DiT + 32B TE 于 sm_75 cu130——1024² ~1.5 分钟、2048² ~2.6 分钟（见 [docs/SOP.zh.md](docs/SOP.zh.md)）
 - [ ] Phase 2 — 量化判决：w4a8 vs int8_convrot vs bf16-pruned（误差+速度），Turing 内核兼容性
 - [ ] Phase 3 — 基准：t2i / edit / PDD 计时；与视频仓的 TE 共享研究（同源 Qwen3-VL）
 - [ ] Phase 4 — 踩坑 FAQ（T8 式加速？这个体量的 DiT 上 Sage on sm_75？AUTOGROW 模板坑）

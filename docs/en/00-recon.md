@@ -16,20 +16,21 @@
 | pruned_w4a8 | 12.55 GB | kitchen AsymW4A8Int8 — same layout as the video W4A8 we validated on sm_75 |
 | pruned_int8_convrot | 20.98 GB | |
 | pruned_bf16 | 40.23 GB | |
-| TE qwen3.5_9b_w4a8_gptq | 7.34 GB | new Qwen3.5-9B option, GPTQ — smallest TE |
+| TE qwen3.5_9b_w4a8_gptq | 7.34 GB | GPTQ — ⚠️ pairs with the **p-h3-image** variant only (hidden 4096), NOT this 33.1B DiT |
 | TE qwen3vl_32b_int8_convrot | 27.14 GB | |
 | TE qwen3vl_32b_nvfp4_awq | 15.69 GB | nvfp4 — sm_75 lacks the tensor cores for this path |
 | VAE fp16 | 1.17 GB | |
 
 ## Turing (sm_75) sizing
 
-- **Minimum stack**: w4a8 DiT (12.6) + 9B TE (7.3) + VAE (1.2) ≈ **21 GB** — fits 22G with zero headroom; CPU-offload the TE for breathing room
-- The w4a8 path dequantizes through the kitchen CUDA backend — the exact mechanism our video repo proved working on sm_75 with torch 2.9.1+cu130 (see docs/01 there). Expect the same "runtime decides the speed" behavior
+- ~~Minimum stack 21 GB with the 9B TE~~ **First-light correction (2026-11-16)**: the 9B TE's hidden size (4096) does not match the 33.1B DiT input projection (5120→5376) — KSampler fails with a shape error. The 9B file belongs to the **p-h3-image** variant. The real TE is `qwen3vl_32b` int8_convrot (27.1 GB — the same file the video repo already ships)
+- **Measured stack**: w4a8 DiT 13.6 + 32B TE 25.9 + VAE 1.1 GB staged (≈40 GB total) — comfy-aimdo dynamic paging takes turns; **peak 19.5 GB on the 22G card**, no manual CPU offload needed
+- The w4a8 path dequantizes through the kitchen CUDA backend — the exact mechanism our video repo proved working on sm_75 with torch 2.9.1+cu130 (see docs/01 there). First light confirms it: 1024² end-to-end in ~1.5 min
 - nvfp4 TE is out on Turing (no FP4 tensor cores); convrot_w4a4 is out for the same reason the video repo documented
 
-## Open questions this repo will answer
+## Open questions — answered by first light (2026-11-16)
 
-1. Does the w4a8 DiT actually run on sm_75 cu130 (first light)?
-2. Which TE is the practical pick — the new 9B GPTQ vs the video repo's qwen3vl_4b_fp8 (if layer-50 compatible)?
-3. Real timings for t2i / edit / PDD on this card
-4. Do the T8/Sage lessons from the video repo transfer to a 33B image DiT?
+1. ✅ The w4a8 DiT runs on sm_75 cu130 — 1024x1024 end-to-end in ~1.5 min (load + 6-step sampling); see the [SOP](../SOP.zh.md)
+2. ✅ Practical TE = qwen3vl_32b int8_convrot (the video repo's file); the 9B GPTQ belongs to p-h3-image
+3. ⏳ t2i timings are landing in the SOP; edit mode untested so far
+4. T8: not ported — the 6-step distilled release already samples in ~10 s/step, too little headroom to be worth a video-specific hack; PDD: already baked into the released 6-step weights, nothing to do

@@ -11,13 +11,14 @@
 
 ## 官方量化线（Comfy-Org），2026-11-16 实测
 
-见 [英文版](en/00-recon.md) 完整表格。要点：**w4a8 DiT 12.55GB**（与视频 W4A8 同 kitchen 布局）；**新 TE 选项 qwen3.5_9b_w4a8_gptq 仅 7.34GB**；nvfp4 在 Turing 不可用（无 FP4 张量核心）。
+见 [英文版](en/00-recon.md) 完整表格。要点：**w4a8 DiT 12.55GB**（与视频 W4A8 同 kitchen 布局）；**qwen3.5_9b_w4a8_gptq 7.34GB 是 p-h3-image 变体的 TE**（⚠️ 与 33.1B 正主不配对，见显存账一节的实测修正）；nvfp4 在 Turing 不可用（无 FP4 张量核心）。
 
-## Turing (sm_75) 显存账
+## Turing (sm_75) 显存账（⚠️ 首跑后修正）
 
-- 最小组合 ≈ **21GB**（w4a8 DiT + 9B TE + VAE）→ 22G 卡极限可跑；TE 建议 CPU offload
-- w4a8 走 kitchen CUDA 反量化——视频仓已验证 sm_75 + torch cu130 可用（见视频仓 docs/01）
-- 官方 t2i 模板用**子图封装**（主体是一个 subgraph UUID 节点）——扁平化参考视频仓 docs/05 的 subgraph 章节
+- ~~最小组合 ≈21GB（w4a8 DiT + 9B TE + VAE）~~ **实测修正**：qwen3.5_9b 的 hidden=4096，与 33.1B DiT 输入投影 5120×5376 不配对（KSampler 直接形状报错）——9B 是 p-h3-image 变体专用。正主 TE = qwen3vl_32b（视频仓同款 int8_convrot 27.14GB）
+- **实测栈**：w4a8 DiT 13.6GB + 32B TE 25.9GB + VAE 1.1GB（staged 合计 ≈40GB）——靠 comfy-aimdo 动态分页轮流上场，22G 卡**峰值 19.5GB** 实测可跑，无需手动 CPU offload
+- w4a8 走 kitchen CUDA 反量化——视频仓已验证 sm_75 + torch cu130 可用（见视频仓 docs/01）；图像首跑同样中奖：1024² 全链路 1.5 分钟
+- 官方 t2i 模板用**子图封装**（主体是一个 subgraph UUID 节点）——API 直连不需要扁平化，见 SOP
 
 ## 本仓库要回答的问题
 

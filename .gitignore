@@ -1,1 +1,4 @@
 repos/
+
+/h3image_t2i_*.png
+__pycache__/
